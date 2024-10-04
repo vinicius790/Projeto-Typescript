@@ -1,0 +1,21 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Prototype {
+  id                Int      @id @default(autoincrement())
+  primitive         Int
+  component         DateTime
+  circularReference CircularReference?
+}
+
+model CircularReference {
+  id         Int       @id @default(autoincrement())
+  prototype  Prototype @relation(fields: [prototypeId], references: [id])
+  prototypeId Int
+}
