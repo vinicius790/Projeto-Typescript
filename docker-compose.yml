@@ -1,0 +1,53 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: projeto-typescript-api:latest
+    container_name: projeto-typescript-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - DATABASE_PROVIDER=sqlite
+      - DATABASE_URL=file:/app/data/dev.db
+      - JWT_SECRET=c8f6e1b4a9d72e35f0a1c8b9d7e5f3a1b9c7d5e3f1a9b7c5d3e1f9a7b5c3d1e9
+      - JWT_ACCESS_TTL=900
+      - JWT_REFRESH_TTL=604800
+    volumes:
+      - typescript-api-data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:' + (process.env.PORT || 3000) + '/docs').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # Serviço opcional com PostgreSQL caso queira rodar com DATABASE_PROVIDER=postgresql
+  postgres:
+    image: postgres:16-alpine
+    container_name: projeto-typescript-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=prototypes
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - postgres
+
+volumes:
+  typescript-api-data:
+    name: typescript-api-data
+  postgres-data:
+    name: postgres-data

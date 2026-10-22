@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [22.x, 24.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Usar Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Gerar o cliente do Prisma
+        run: npm run prisma:generate
+
+      - name: Verificar formatação
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Checagem de tipos (inclui os testes)
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Testes unitários
+        run: npm test
+
+      # Os testes e2e criam um banco SQLite temporário e aplicam as migrações sozinhos.
+      - name: Testes e2e
+        run: npm run test:e2e
+
+  # Os mesmos testes e2e contra um PostgreSQL de verdade (num schema descartável).
+  e2e-postgres:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          # Credenciais só deste contêiner temporário do CI.
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: prototypes
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Usar Node.js 24.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Gerar o cliente do Prisma para PostgreSQL
+        run: npm run prisma:generate
+        env:
+          DATABASE_PROVIDER: postgresql
+
+      - name: Testes e2e (PostgreSQL)
+        run: npm run test:e2e
+        env:
+          E2E_POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/prototypes

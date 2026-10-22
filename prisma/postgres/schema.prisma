@@ -1,0 +1,98 @@
+// Schema do PostgreSQL, usado quando DATABASE_PROVIDER=postgresql (ver prisma/prisma-cli.mjs).
+// Os MODELOS têm de ser mantidos iguais aos de prisma/schema.prisma.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Prototype {
+  id                Int                @id @default(autoincrement())
+  name              String
+  primitive         Int
+  component         DateTime
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  // Incrementada a cada edição, inclusive restaurações, para controle otimista de concorrência.
+  version           Int                @default(1)
+  circularReference CircularReference?
+  revisions         PrototypeRevision[]
+
+  // Linhagem: de qual protótipo este registro foi clonado.
+  clonedFromId Int?
+  clonedFrom   Prototype?  @relation("PrototypeClones", fields: [clonedFromId], references: [id], onDelete: SetNull)
+  clones       Prototype[] @relation("PrototypeClones")
+}
+
+// Componente com referência de volta ao protótipo dono (relação 1:1).
+model CircularReference {
+  id          Int       @id @default(autoincrement())
+  label       String
+  prototypeId Int       @unique
+  prototype   Prototype @relation(fields: [prototypeId], references: [id], onDelete: Cascade)
+}
+
+// Usuário da API. O papel (role) é texto ("USER" ou "ADMIN") em vez de enum para o
+// mesmo modelo valer em SQLite e PostgreSQL; a aplicação valida os valores.
+model User {
+  id            Int            @id @default(autoincrement())
+  email         String         @unique
+  passwordHash  String
+  role          String         @default("USER")
+  // `true` só no usuário que virou ADMIN por ser o primeiro; nos demais, nulo. O
+  // índice único impede que dois cadastros simultâneos num banco vazio virem ADMIN.
+  firstAdmin    Boolean?       @unique
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  refreshTokens RefreshToken[]
+  prototypeRevisions PrototypeRevision[]
+}
+
+// Snapshot imutável de cada estado persistido. Restaurar uma versão cria um novo
+// snapshot; o histórico nunca retrocede nem sobrescreve revisões anteriores.
+model PrototypeRevision {
+  id                     Int       @id @default(autoincrement())
+  prototypeId            Int
+  prototype              Prototype @relation(fields: [prototypeId], references: [id], onDelete: Cascade)
+  version                Int
+  name                   String
+  primitive              Int
+  component              DateTime
+  circularReferenceLabel String?
+  actorId                Int?
+  actor                  User?     @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  recordedAt             DateTime  @default(now())
+
+  @@unique([prototypeId, version])
+  @@index([prototypeId, recordedAt])
+}
+
+// Token de renovação emitido. O id é o `jti` do JWT. Cada renovação marca o token
+// usado como revogado e emite outro na mesma família (sessão); reapresentar um
+// token já revogado encerra a família inteira.
+model RefreshToken {
+  id        String    @id
+  familyId  String
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([familyId])
+  @@index([userId])
+}
+
+// Tentativas de login de uma chave (IP + e-mail) na janela atual de 15 minutos. Fica
+// no banco para o limite valer entre processos; as janelas vencidas são apagadas a
+// cada tentativa.
+model LoginAttempt {
+  key      String   @id
+  attempts Int
+  resetAt  DateTime
+
+  @@index([resetAt])
+}

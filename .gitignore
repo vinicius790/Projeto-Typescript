@@ -1,0 +1,40 @@
+# Dependências e artefatos de build
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Banco SQLite local e dados gerados em runtime
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Segredos e configuração de ambiente
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.cert
+
+# Logs do sistema e gerenciadores de pacotes
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editores e IDEs
+.vscode/
+.idea/
+*.swp
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Arquivos da reorganização local (não fazem parte do repositório)
+BACKUP_ORIGINAL_antes_de_organizar.zip
+LOG_REORGANIZACAO.txt
